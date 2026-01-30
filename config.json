@@ -1,0 +1,8 @@
+{
+    "cartella_gpx": "percorsi_gpx/",
+    "colori_percorsi": {
+        "Biking": "red",
+        "Hiking": "blue",
+        "default": "gray"
+    }
+}
