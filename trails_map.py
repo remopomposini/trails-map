@@ -464,23 +464,74 @@ html_output = f'''<!DOCTYPE html>
             background: rgba(255,255,255,0.92);
             backdrop-filter: blur(8px);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 0.72rem;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.65rem;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            pointer-events: none;
+            letter-spacing: 0.06em;
+            min-width: 140px;
+            max-width: 190px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }}
-
-        .map-badge span {{
+        .badge-title {{
             font-family: var(--font-display);
             font-weight: 700;
+            font-size: 0.78rem;
+            color: var(--text);
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: none;
+        }}
+        .badge-stats {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        .badge-count {{
+            font-family: var(--font-display);
+            font-weight: 800;
             font-size: 1.1rem;
             color: var(--text);
-            display: block;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.03em;
+            line-height: 1;
         }}
+        .badge-label {{ line-height: 1.5; }}
+        .badge-actions {{
+            display: none;
+            margin-top: 8px;
+            gap: 5px;
+            flex-direction: column;
+        }}
+        .badge-link, .badge-deselect {{
+            display: block;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-align: center;
+            pointer-events: all;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            text-decoration: none;
+        }}
+        .badge-link {{
+            background: var(--accent);
+            color: white;
+            border: none;
+        }}
+        .badge-deselect {{
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }}
+        .badge-link:hover, .badge-deselect:hover {{ opacity: 0.75; }}
 
         /* ── SCROLLBAR ── */
         .trails-list::-webkit-scrollbar {{ width: 4px; }}
@@ -505,6 +556,55 @@ html_output = f'''<!DOCTYPE html>
         .reset-btn:hover {{ border-color: #aaa; color: var(--text); }}
         .reset-btn.visible {{ display: block; }}
 
+        /* ── TAB BAR (mobile only) ── */
+        .tab-bar {{
+            display: none;
+            height: 48px;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+        }}
+        .tab-bar button {{
+            flex: 1;
+            height: 100%;
+            border: none;
+            background: transparent;
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }}
+        .tab-bar button.active {{
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }}
+
+        /* ── MOBILE LAYOUT ── */
+        @media (max-width: 700px) {{
+            header {{ padding: 0 16px; height: 50px; }}
+            .tab-bar {{ display: flex; }}
+            .main {{ flex-direction: column; }}
+            .sidebar {{
+                width: 100%;
+                border-right: none;
+                border-top: 1px solid var(--border);
+                flex: 1;
+                display: none;
+            }}
+            .map-container {{ width: 100%; height: 100%; display: none; }}
+            .main.show-map .map-container {{ display: block; flex: 1; }}
+            .main.show-list .sidebar {{ display: flex; flex: 1; }}
+            .map-badge {{ top: 8px; right: 8px; padding: 8px 10px; font-size: 0.6rem; min-width: 130px; max-width: 170px; }}
+            .badge-count {{ font-size: 0.95rem; }}
+            .badge-title {{ font-size: 0.72rem; }}
+            .trail-card:hover {{ transform: none; }}
+        }}
+
     </style>
 </head>
 <body>
@@ -513,10 +613,13 @@ html_output = f'''<!DOCTYPE html>
     <div class="header-title">Le mie <span>uscite</span></div>
     <div class="header-count" id="count-label">{len(percorsi_data)} percorsi</div>
 </header>
-
-<div class="main">
+<div class="tab-bar" id="tab-bar">
+    <button id="tab-map" class="active" onclick="switchTab('map')">🗺 Mappa</button>
+    <button id="tab-list" onclick="switchTab('list')">📋 Lista</button>
+</div>
+<div class="main show-map" id="main">
     <!-- SIDEBAR -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
         <div class="sidebar-top">
             <div class="filter-row">
                 {filter_buttons}
@@ -529,11 +632,18 @@ html_output = f'''<!DOCTYPE html>
     </div>
 
     <!-- MAPPA -->
-    <div class="map-container">
+    <div class="map-container" id="map-container">
         <div id="map"></div>
         <div class="map-badge" id="map-badge">
-            <span id="badge-num">{len(percorsi_data)}</span>
-            percorsi totali
+            <div class="badge-title" id="badge-title"></div>
+            <div class="badge-stats">
+                <div class="badge-count" id="badge-num">{len(percorsi_data)}</div>
+                <div class="badge-label" id="badge-label">percorsi totali</div>
+            </div>
+            <div class="badge-actions" id="badge-actions">
+                <a class="badge-link" id="badge-link" href="#" target="_blank">↗ Vedi percorso</a>
+                <button class="badge-deselect" onclick="resetSelection()">✕ Tutti i percorsi</button>
+            </div>
         </div>
     </div>
 </div>
@@ -649,12 +759,16 @@ function selectTrail(id) {{
         }}
     }});
     document.getElementById('count-label').textContent = '1 percorso';
-
-    const badge = document.getElementById('map-badge');
-    badge.querySelector('span').textContent = p.distanza + ' km';
-    badge.childNodes[badge.childNodes.length - 1].textContent = '↑ +' + p.dislivello + 'm  ·  ' + p.titolo.substring(0, 20);
-
+    document.getElementById('badge-title').textContent = p.titolo;
+    document.getElementById('badge-title').style.display = 'block';
+    document.getElementById('badge-num').textContent = p.distanza + ' km';
+    document.getElementById('badge-label').textContent = '↑ +' + p.dislivello + ' m';
+    document.getElementById('badge-link').href = p.link;
+    document.getElementById('badge-actions').style.display = 'flex';
     document.getElementById('reset-btn').classList.add('visible');
+
+    // Su mobile passa automaticamente alla vista mappa
+    if (window.innerWidth <= 700) switchTab('map');
 }}
 
 function resetSelection() {{
@@ -675,9 +789,11 @@ function resetSelection() {{
     // Aggiorna lista usando i bounds completi (fitBounds non ha ancora finito l'animazione)
     const allBounds = L.latLngBounds(allLatLngs);
     const visCount = updateListByView(allBounds);
-    const badge = document.getElementById('map-badge');
-    badge.childNodes[badge.childNodes.length - 1].textContent = 'percorsi totali';
-    badge.querySelector('span').textContent = visCount;
+    document.getElementById('badge-title').style.display = 'none';
+    document.getElementById('badge-title').textContent = '';
+    document.getElementById('badge-num').textContent = visCount;
+    document.getElementById('badge-label').textContent = 'percorsi totali';
+    document.getElementById('badge-actions').style.display = 'none';
     document.getElementById('reset-btn').classList.remove('visible');
 }}
 
@@ -698,6 +814,23 @@ function toggleFilter(btn) {{
     }});
     if (selectedId !== null) resetSelection();
     else updateListByView();
+}}
+
+// ── MOBILE TAB SWITCHING ──
+function switchTab(tab) {{
+    const main = document.getElementById('main');
+    const tabMap = document.getElementById('tab-map');
+    const tabList = document.getElementById('tab-list');
+    if (tab === 'map') {{
+        main.className = 'main show-map';
+        tabMap.classList.add('active');
+        tabList.classList.remove('active');
+        setTimeout(() => map.invalidateSize(), 50);
+    }} else {{
+        main.className = 'main show-list';
+        tabList.classList.add('active');
+        tabMap.classList.remove('active');
+    }}
 }}
 </script>
 </body>
